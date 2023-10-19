@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { User } from './entities/user.entity';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { RedisService } from 'src/redis/redis.service';
@@ -14,6 +16,7 @@ import { md5 } from 'src/util';
 import { Role } from './entities/role.entity';
 import { Permission } from './entities/permission.entity';
 import { LoginUserDto } from './dto/login-user.dto';
+import { LoginUserVo } from './dto/login-user.vo';
 
 @Injectable()
 export class UserService {
@@ -30,6 +33,12 @@ export class UserService {
 
   @Inject(RedisService)
   private redisService: RedisService;
+
+  @Inject(JwtService)
+  private jwtService: JwtService;
+
+  @Inject(ConfigService)
+  private configService: ConfigService;
 
   /**
    * 注册
@@ -70,11 +79,11 @@ export class UserService {
    */
   async initData() {
     const user1 = new User();
-    user1.username = 'zhangsan';
+    user1.username = 'wangyibo';
     user1.password = md5('111111');
-    user1.email = 'xxx@xx.com';
+    user1.email = 'wangyibo@xx.com';
     user1.isAdmin = true;
-    user1.nickName = '张三';
+    user1.nickName = '王一博';
     user1.phoneNumber = '13233323333';
 
     const user2 = new User();
@@ -114,13 +123,85 @@ export class UserService {
         username: loginUserDto.username,
         isAdmin,
       },
+      relations: ['roles', 'roles.permissions'],
     });
+    console.log(user);
     if (!user) {
       throw new HttpException('用户不存在', HttpStatus.BAD_REQUEST);
     }
     if (user.password !== md5(loginUserDto.password)) {
       throw new HttpException('密码不正确', HttpStatus.BAD_REQUEST);
     }
-    return user;
+    const vo = new LoginUserVo();
+    vo.userInfo = {
+      id: user.id,
+      username: user.username,
+      nickName: user.nickName,
+      email: user.email,
+      headPic: user.headPic,
+      phoneNumber: user.phoneNumber,
+      isFrozen: user.isFrozen,
+      isAdmin: user.isAdmin,
+      createTime: user.createTime + '',
+      roles: user.roles.map((item) => item.name),
+      permissions: user.roles.reduce((arr, cur) => {
+        // permissions 是所有 roles 的 permissions 的合并，要去下重。
+        cur.permissions.forEach((item) => {
+          if (arr.indexOf(item) === -1) {
+            arr.push(item);
+          }
+        });
+        return arr;
+      }, []),
+    };
+
+    vo.accessToken = this.jwtService.sign(
+      {
+        userId: vo.userInfo.id,
+        username: vo.userInfo.username,
+        roles: vo.userInfo.roles,
+        permissions: vo.userInfo.permissions,
+      },
+      {
+        expiresIn:
+          this.configService.get('jwt_access_token_expires_time') || '30m',
+      },
+    );
+
+    vo.refreshToken = this.jwtService.sign(
+      {
+        userId: vo.userInfo.id,
+      },
+      {
+        expiresIn:
+          this.configService.get('jwt_refresh_token_expires_time') || '7d',
+      },
+    );
+
+    return vo;
+  }
+
+  async findUserById(userId: number, isAdmin: boolean) {
+    const user = await this.userRepository.findOne({
+      where: {
+        id: userId,
+        isAdmin,
+      },
+      relations: ['roles', 'roles.permissions'],
+    });
+    return {
+      id: user.id,
+      username: user.username,
+      isAdmin: user.isAdmin,
+      roles: user.roles.map((item) => item.name),
+      permissions: user.roles.reduce((arr, item) => {
+        item.permissions.forEach((permission) => {
+          if (arr.indexOf(permission) === -1) {
+            arr.push(permission);
+          }
+        });
+        return arr;
+      }, []),
+    };
   }
 }
