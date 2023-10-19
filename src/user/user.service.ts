@@ -16,7 +16,9 @@ import { md5 } from 'src/util';
 import { Role } from './entities/role.entity';
 import { Permission } from './entities/permission.entity';
 import { LoginUserDto } from './dto/login-user.dto';
-import { LoginUserVo } from './dto/login-user.vo';
+import { LoginUserVo } from './vo/login-user.vo';
+import { UpdateUserPasswordDto } from './dto/update-user-password.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UserService {
@@ -203,5 +205,83 @@ export class UserService {
         return arr;
       }, []),
     };
+  }
+
+  async findUserDetailById(userId: number) {
+    return await this.userRepository.findOne({
+      where: {
+        id: userId,
+      },
+    });
+  }
+
+  async updatePassword(userId: number, params: UpdateUserPasswordDto) {
+    const captcha = await this.redisService.get(
+      `update_password_captcha_${params.email}`,
+    );
+
+    if (!captcha) {
+      throw new HttpException('验证码已失效', HttpStatus.BAD_REQUEST);
+    }
+
+    if (params.captcha !== captcha) {
+      throw new HttpException('验证码不正确', HttpStatus.BAD_REQUEST);
+    }
+
+    const foundUser = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!foundUser) {
+      throw new HttpException('用户不存在', HttpStatus.BAD_REQUEST);
+    }
+
+    foundUser.password = md5(params.password);
+
+    try {
+      await this.userRepository.save(foundUser);
+      return '密码修改成功';
+    } catch (error) {
+      this.logger.error(error, UserService);
+      return '密码修改失败';
+    }
+  }
+
+  async updateUserInfo(userId: number, params: UpdateUserDto) {
+    const captcha = await this.redisService.get(
+      `update_user_captcha_${params.email}`,
+    );
+
+    if (!captcha) {
+      throw new HttpException('验证码已失效', HttpStatus.BAD_REQUEST);
+    }
+
+    if (params.captcha !== captcha) {
+      throw new HttpException('验证码不正确', HttpStatus.BAD_REQUEST);
+    }
+
+    const foundUser = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!foundUser) {
+      throw new HttpException('用户不存在', HttpStatus.BAD_REQUEST);
+    }
+
+    if (params.headPic) {
+      foundUser.headPic = params.headPic;
+    }
+
+    if (params.nickName) {
+      foundUser.nickName = params.nickName;
+    }
+
+    try {
+      await this.userRepository.save(foundUser);
+      return '用户信息修改成功';
+    } catch (error) {
+      this.logger.error(error, UserService);
+      return '用户信息修改失败';
+    }
   }
 }
