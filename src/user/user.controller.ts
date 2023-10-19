@@ -8,6 +8,7 @@ import {
   Query,
   Inject,
   UnauthorizedException,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { RegisterUserDto } from './dto/register-user.dto';
@@ -18,6 +19,7 @@ import { RequireLogin, UserInfo } from 'src/common/decorators/custom.decorator';
 import { UserDetailVo } from './vo/user-info.vo';
 import { UpdateUserPasswordDto } from './dto/update-user-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { generateParseIntPipe } from './../util';
 
 @Controller('user')
 export class UserController {
@@ -174,7 +176,11 @@ export class UserController {
   async updatePasswordCaptcha(@Query('address') address: string) {
     const code = Math.random().toString().slice(2, 8);
 
-    await this.redisService.set(`update_password_captcha_${address}`, code, 30 * 60);
+    await this.redisService.set(
+      `update_password_captcha_${address}`,
+      code,
+      30 * 60,
+    );
 
     await this.emailService.sendEmail({
       to: address,
@@ -195,12 +201,46 @@ export class UserController {
   async updateUserCaptcha(@Query('address') address: string) {
     const code = Math.random().toString().slice(2, 8);
 
-    await this.redisService.set(`update_user_captcha_${address}`, code, 30 * 60);
+    await this.redisService.set(
+      `update_user_captcha_${address}`,
+      code,
+      30 * 60,
+    );
 
     await this.emailService.sendEmail({
       to: address,
       subject: '更新信息验证码',
       html: `<p>你的更新信息验证码: ${code}</p>`,
     });
+  }
+
+  @Get('freeze')
+  async freeze(@Query('id') userId: number) {
+    await this.userService.freezeUserById(userId);
+
+    return 'success';
+  }
+
+  @Get('list')
+  async list(
+    @Query('pageNum', new DefaultValuePipe(1), generateParseIntPipe('pageNum'))
+    pageNum: number,
+    @Query(
+      'pageSize',
+      new DefaultValuePipe(10),
+      generateParseIntPipe('pageSize'),
+    )
+    pageSize: number,
+    @Query('username') username: string,
+    @Query('nickName') nickName: string,
+    @Query('email') email: string,
+  ) {
+    return await this.userService.findUserByPage(
+      pageNum,
+      pageSize,
+      username,
+      nickName,
+      email,
+    );
   }
 }
