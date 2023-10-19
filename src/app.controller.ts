@@ -14,8 +14,6 @@ export class AppController {
   @RequireLogin()
   @RequirePermission('ddd')
   aaa(@UserInfo('username') username: string, @UserInfo() userInfo) {
-    console.log(username);
-    console.log(userInfo);
     return 'aaa';
   }
 
