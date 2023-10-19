@@ -19,6 +19,7 @@ import { LoginUserDto } from './dto/login-user.dto';
 import { LoginUserVo } from './vo/login-user.vo';
 import { UpdateUserPasswordDto } from './dto/update-user-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserListVo } from './vo/user-list.vo';
 
 @Injectable()
 export class UserService {
@@ -144,7 +145,7 @@ export class UserService {
       phoneNumber: user.phoneNumber,
       isFrozen: user.isFrozen,
       isAdmin: user.isAdmin,
-      createTime: user.createTime + '',
+      createTime: user.createTime,
       roles: user.roles.map((item) => item.name),
       permissions: user.roles.reduce((arr, cur) => {
         // permissions 是所有 roles 的 permissions 的合并，要去下重。
@@ -336,9 +337,11 @@ export class UserService {
       where: condition,
     });
 
-    return {
-      list: users,
-      totalCount,
-    };
+    const vo = new UserListVo();
+
+    vo.users = users;
+    vo.totalCount = totalCount;
+
+    return vo;
   }
 }

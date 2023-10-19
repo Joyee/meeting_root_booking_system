@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { FormatResponseInterceptor } from './common/interceptors/format-response.interceptor';
 import { InvokeRecordInterceptor } from './common/interceptors/invoke-record.interceptor';
 import { UnLoginFilter } from './common/filters/unlogin.filter';
+import { setupSwagger } from './swagger-doc';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -15,6 +16,8 @@ async function bootstrap() {
   app.useGlobalInterceptors(new InvokeRecordInterceptor());
   app.useGlobalFilters(new UnLoginFilter());
   app.useGlobalFilters(new CustomExceptionFilter());
+
+  setupSwagger(app);
 
   await app.listen(app.get(ConfigService).get('nest_server_port'));
 }
